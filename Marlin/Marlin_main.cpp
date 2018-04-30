@@ -196,7 +196,7 @@
  * M407 - Display measured filament diameter in millimeters. (Requires FILAMENT_WIDTH_SENSOR)
  * M410 - Quickstop. Abort all planned moves.
  * M420 - Enable/Disable Leveling (with current values) S1=enable S0=disable (Requires MESH_BED_LEVELING or ABL)
- * M421 - Set a single Z coordinate in the Mesh Leveling grid. X<units> Y<units> Z<units> (Requires MESH_BED_LEVELING or AUTO_BED_LEVELING_UBL)
+ * M421 - Set a single Z coordinate in the Mesh Leveling grid. X<units> Y<units> Z<units> (Requires MESH_BED_LEVELING, AUTO_BED_LEVELING_BILINEAR, or AUTO_BED_LEVELING_UBL)
  * M428 - Set the home_offset based on the current_position. Nearest edge applies. (Disabled by NO_WORKSPACE_OFFSETS or DELTA)
  * M500 - Store parameters in EEPROM. (Requires EEPROM_SETTINGS)
  * M501 - Restore parameters from EEPROM. (Requires EEPROM_SETTINGS)
@@ -1552,6 +1552,9 @@ static void set_axis_is_at_home(const AxisEnum axis) {
  * Some planner shorthand inline functions
  */
 inline float get_homing_bump_feedrate(const AxisEnum axis) {
+  #if HOMING_Z_WITH_PROBE
+    if (axis == Z_AXIS) return Z_PROBE_SPEED_SLOW;
+  #endif
   static const uint8_t homing_bump_divisor[] PROGMEM = HOMING_BUMP_DIVISOR;
   uint8_t hbd = pgm_read_byte(&homing_bump_divisor[axis]);
   if (hbd < 1) {
@@ -2221,8 +2224,8 @@ void clean_up_after_endstop_or_probe_move() {
         while (thermalManager.isHeatingBed()) safe_delay(200);
         lcd_reset_status();
       }
-    #endif	
-	
+    #endif
+
     // Deploy BLTouch at the start of any probe
     #if ENABLED(BLTOUCH)
       if (set_bltouch_deployed(true)) return true;
@@ -2936,7 +2939,7 @@ static void do_homing_move(const AxisEnum axis, const float distance, const floa
       SERIAL_EOL();
     }
   #endif
-  
+
   #if HOMING_Z_WITH_PROBE && HAS_HEATED_BED && ENABLED(WAIT_FOR_BED_HEATER)
     // Wait for bed to heat back up between probing points
     if (axis == Z_AXIS && distance < 0 && thermalManager.isHeatingBed()) {
@@ -3083,7 +3086,7 @@ static void homeaxis(const AxisEnum axis) {
   // When homing Z with probe respect probe clearance
   const float bump = axis_home_dir * (
     #if HOMING_Z_WITH_PROBE
-      (axis == Z_AXIS) ? max(Z_CLEARANCE_BETWEEN_PROBES, home_bump_mm(Z_AXIS)) :
+      (axis == Z_AXIS && (Z_HOME_BUMP_MM)) ? max(Z_CLEARANCE_BETWEEN_PROBES, home_bump_mm(Z_AXIS)) :
     #endif
     home_bump_mm(axis)
   );
@@ -4748,8 +4751,17 @@ void home_all_axes() { gcode_G28(true); }
         front_probe_bed_position = parser.seenval('F') ? (int)RAW_Y_POSITION(parser.value_linear_units()) : FRONT_PROBE_BED_POSITION;
         back_probe_bed_position  = parser.seenval('B') ? (int)RAW_Y_POSITION(parser.value_linear_units()) : BACK_PROBE_BED_POSITION;
 
-        if ( !position_is_reachable_by_probe(left_probe_bed_position, front_probe_bed_position)
-          || !position_is_reachable_by_probe(right_probe_bed_position, back_probe_bed_position)) {
+        if (
+          #if IS_SCARA || ENABLED(DELTA)
+               !position_is_reachable_by_probe(left_probe_bed_position, 0)
+            || !position_is_reachable_by_probe(right_probe_bed_position, 0)
+            || !position_is_reachable_by_probe(0, front_probe_bed_position)
+            || !position_is_reachable_by_probe(0, back_probe_bed_position)
+          #else
+               !position_is_reachable_by_probe(left_probe_bed_position, front_probe_bed_position)
+            || !position_is_reachable_by_probe(right_probe_bed_position, back_probe_bed_position)
+          #endif
+        ) {
           SERIAL_PROTOCOLLNPGM("? (L,R,F,B) out of bounds.");
           return;
         }
@@ -5381,9 +5393,9 @@ void home_all_axes() { gcode_G28(true); }
     const float measured_z = probe_pt(xpos, ypos, raise_after, parser.intval('V', 1));
 
     if (!isnan(measured_z)) {
-      SERIAL_PROTOCOLPAIR("Bed X: ", FIXFLOAT(xpos));
-      SERIAL_PROTOCOLPAIR(" Y: ", FIXFLOAT(ypos));
-      SERIAL_PROTOCOLLNPAIR(" Z: ", FIXFLOAT(measured_z));
+      SERIAL_PROTOCOLPAIR_F("Bed X: ", xpos);
+      SERIAL_PROTOCOLPAIR_F(" Y: ", ypos);
+      SERIAL_PROTOCOLLNPAIR_F(" Z: ", measured_z);
     }
 
     clean_up_after_endstop_or_probe_move();
@@ -5666,7 +5678,7 @@ void home_all_axes() { gcode_G28(true); }
 
   /**
    * kinematics routines and auto tune matrix scaling parameters:
-   * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for  
+   * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for
    *  - formulae for approximative forward kinematics in the end-stop displacement matrix
    *  - definition of the matrix scaling parameters
    */
@@ -5680,7 +5692,7 @@ void home_all_axes() { gcode_G28(true); }
       pos[Y_AXIS] = sin(a) * r;
       pos[Z_AXIS] = z_pt[rad];
       inverse_kinematics(pos);
-      LOOP_XYZ(axis) mm_at_pt_axis[rad][axis] = delta[axis];           
+      LOOP_XYZ(axis) mm_at_pt_axis[rad][axis] = delta[axis];
     }
   }
 
@@ -5744,7 +5756,7 @@ void home_all_axes() { gcode_G28(true); }
           delta_t[ABC] = {0.0};
 
     delta_r = diff;
-    calc_kinematics_diff_probe_points(z_pt, delta_e, delta_r, delta_t);     
+    calc_kinematics_diff_probe_points(z_pt, delta_e, delta_r, delta_t);
     r_fac = -(z_pt[__A] + z_pt[__B] + z_pt[__C] + z_pt[_BC] + z_pt[_CA] + z_pt[_AB]) / 6.0;
     r_fac = diff / r_fac / 3.0; // 1/(3*delta_Z)
     return r_fac;
@@ -5761,7 +5773,7 @@ void home_all_axes() { gcode_G28(true); }
     LOOP_XYZ(axis) {
       LOOP_XYZ(axis_2) delta_t[axis_2] = 0.0;
       delta_t[axis] = diff;
-      calc_kinematics_diff_probe_points(z_pt, delta_e, delta_r, delta_t);     
+      calc_kinematics_diff_probe_points(z_pt, delta_e, delta_r, delta_t);
       a_fac += z_pt[uint8_t((axis * _4P_STEP) - _7P_STEP + NPP) % NPP + 1] / 6.0;
       a_fac -= z_pt[uint8_t((axis * _4P_STEP) + 1 + _7P_STEP)] / 6.0;
     }
@@ -5943,7 +5955,7 @@ void home_all_axes() { gcode_G28(true); }
 
         /**
          * convergence matrices:
-         * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for  
+         * see https://github.com/LVD-AC/Marlin-AC/tree/1.1.x-AC/documentation for
          *  - definition of the matrix scaling parameters
          *  - matrices for 4 and 7 point calibration
          */
@@ -6009,7 +6021,7 @@ void home_all_axes() { gcode_G28(true); }
         delta_radius += r_delta;
         LOOP_XYZ(axis) delta_tower_angle_trim[axis] += t_delta[axis];
       }
-      else if (zero_std_dev >= test_precision) {   
+      else if (zero_std_dev >= test_precision) {
         // roll back
         COPY(delta_endstop_adj, e_old);
         delta_radius = r_old;
@@ -6035,7 +6047,7 @@ void home_all_axes() { gcode_G28(true); }
       NOMORE(zero_std_dev_min, zero_std_dev);
 
       // print report
-  
+
       if (verbose_level == 3)
         print_calibration_results(z_at_pt, _tower_results, _opposite_results);
 
@@ -9978,6 +9990,9 @@ void quickstop_stepper() {
 }
 
 #if HAS_LEVELING
+
+  //#define M420_C_USE_MEAN
+
   /**
    * M420: Enable/Disable Bed Leveling and/or set the Z fade height.
    *
@@ -9989,8 +10004,18 @@ void quickstop_stepper() {
    *
    *   L[index]  Load UBL mesh from index (0 is default)
    *   T[map]    0:Human-readable 1:CSV 2:"LCD" 4:Compact
+   *
+   * With mesh-based leveling only:
+   *
+   *   C         Center mesh on the mean of the lowest and highest
    */
   inline void gcode_M420() {
+    const bool seen_S = parser.seen('S');
+    bool to_enable = seen_S ? parser.value_bool() : planner.leveling_active;
+
+    // If disabling leveling do it right away
+    // (Don't disable for just M420 or M420 V)
+    if (seen_S && !to_enable) set_bed_leveling_enabled(false);
 
     const float oldpos[] = { current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS] };
 
@@ -9998,6 +10023,8 @@ void quickstop_stepper() {
 
       // L to load a mesh from the EEPROM
       if (parser.seen('L')) {
+
+        set_bed_leveling_enabled(false);
 
         #if ENABLED(EEPROM_SETTINGS)
           const int8_t storage_slot = parser.has_value() ? parser.value_int() : ubl.storage_slot;
@@ -10025,14 +10052,73 @@ void quickstop_stepper() {
         #endif
       }
 
-      // L to load a mesh from the EEPROM
+      // L or V display the map info
       if (parser.seen('L') || parser.seen('V')) {
-        ubl.display_map(parser.byteval('T'));  // 0=
+        ubl.display_map(parser.byteval('T'));
         SERIAL_ECHOLNPAIR("ubl.mesh_is_valid = ", ubl.mesh_is_valid());
         SERIAL_ECHOLNPAIR("ubl.storage_slot = ", ubl.storage_slot);
       }
 
     #endif // AUTO_BED_LEVELING_UBL
+
+    #if HAS_MESH
+
+      #if ENABLED(MESH_BED_LEVELING)
+        #define Z_VALUES(X,Y) mbl.z_values[X][Y]
+      #else
+        #define Z_VALUES(X,Y) z_values[X][Y]
+      #endif
+
+      // Subtract the given value or the mean from all mesh values
+      if (leveling_is_valid() && parser.seen('C')) {
+        const float cval = parser.value_float();
+        #if ENABLED(AUTO_BED_LEVELING_UBL)
+
+          set_bed_leveling_enabled(false);
+          ubl.adjust_mesh_to_mean(true, cval);
+
+        #else
+
+          #if ENABLED(M420_C_USE_MEAN)
+
+            // Get the sum and average of all mesh values
+            float mesh_sum = 0;
+            for (uint8_t x = GRID_MAX_POINTS_X; x--;)
+              for (uint8_t y = GRID_MAX_POINTS_Y; y--;)
+                mesh_sum += Z_VALUES(x, y);
+            const float zmean = mesh_sum / float(GRID_MAX_POINTS);
+
+          #else
+
+            // Find the low and high mesh values
+            float lo_val = 100, hi_val = -100;
+            for (uint8_t x = GRID_MAX_POINTS_X; x--;)
+              for (uint8_t y = GRID_MAX_POINTS_Y; y--;) {
+                const float z = Z_VALUES(x, y);
+                NOMORE(lo_val, z);
+                NOLESS(hi_val, z);
+              }
+            // Take the mean of the lowest and highest
+            const float zmean = (lo_val + hi_val) / 2.0 + cval;
+
+          #endif
+
+          // If not very close to 0, adjust the mesh
+          if (!NEAR_ZERO(zmean)) {
+            set_bed_leveling_enabled(false);
+            // Subtract the mean from all values
+            for (uint8_t x = GRID_MAX_POINTS_X; x--;)
+              for (uint8_t y = GRID_MAX_POINTS_Y; y--;)
+                Z_VALUES(x, y) -= zmean;
+            #if ENABLED(ABL_BILINEAR_SUBDIVISION)
+              bed_level_virt_interpolate();
+            #endif
+          }
+
+        #endif
+      }
+
+    #endif // HAS_MESH
 
     // V to print the matrix or mesh
     if (parser.seen('V')) {
@@ -10057,21 +10143,17 @@ void quickstop_stepper() {
       if (parser.seen('Z')) set_z_fade_height(parser.value_linear_units(), false);
     #endif
 
-    bool to_enable = false;
-    if (parser.seen('S')) {
-      to_enable = parser.value_bool();
-      set_bed_leveling_enabled(to_enable);
-    }
+    // Enable leveling if specified, or if previously active
+    set_bed_leveling_enabled(to_enable);
 
-    const bool new_status = planner.leveling_active;
-
-    if (to_enable && !new_status) {
+    // Error if leveling failed to enable or reenable
+    if (to_enable && !planner.leveling_active) {
       SERIAL_ERROR_START();
       SERIAL_ERRORLNPGM(MSG_ERR_M420_FAILED);
     }
 
     SERIAL_ECHO_START();
-    SERIAL_ECHOLNPAIR("Bed Leveling ", new_status ? MSG_ON : MSG_OFF);
+    SERIAL_ECHOLNPAIR("Bed Leveling ", planner.leveling_active ? MSG_ON : MSG_OFF);
 
     #if ENABLED(ENABLE_LEVELING_FADE_HEIGHT)
       SERIAL_ECHO_START();
@@ -10086,7 +10168,8 @@ void quickstop_stepper() {
     if (memcmp(oldpos, current_position, sizeof(oldpos)))
       report_current_position();
   }
-#endif
+
+#endif // HAS_LEVELING
 
 #if ENABLED(MESH_BED_LEVELING)
 
@@ -10386,10 +10469,6 @@ inline void gcode_M502() {
 #endif // SKEW_CORRECTION_GCODE
 
 #if ENABLED(ADVANCED_PAUSE_FEATURE)
-
-  #ifndef FILAMENT_CHANGE_SLOW_LOAD_LENGTH
-    #define FILAMENT_CHANGE_SLOW_LOAD_LENGTH 0
-  #endif
 
   /**
    * M600: Pause for filament change
@@ -11985,6 +12064,8 @@ void process_parsed_command() {
       #if ENABLED(DEBUG_GCODE_PARSER)
         case 800: parser.debug(); break;                          // G800: GCode Parser Test for G
       #endif
+
+      default: parser.unknown_command_error();
     }
     break;
 
@@ -12342,6 +12423,8 @@ void process_parsed_command() {
       #endif
 
       case 999: gcode_M999(); break;                              // M999: Restart after being Stopped
+
+      default: parser.unknown_command_error();
     }
     break;
 
