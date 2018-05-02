@@ -49,9 +49,6 @@
     void _lcd_ubl_output_map_lcd();
   #endif
 
-  extern float meshedit_done;
-  extern long babysteps_done;
-
   #define SIZE_OF_LITTLE_RAISE 1
   #define BIG_RAISE_NOT_NEEDED 0
 
@@ -751,7 +748,7 @@
 
       STOW_PROBE();
 
-      #if Z_AFTER_PROBING
+      #ifdef Z_AFTER_PROBING
         move_z_after_probing();
       #endif
 
@@ -1493,6 +1490,8 @@
   }
 
   #if HAS_BED_PROBE
+
+    #include "vector_3.h"
 
     void unified_bed_leveling::tilt_mesh_based_on_probed_grid(const bool do_3_pt_leveling) {
       constexpr int16_t x_min = max(MIN_PROBE_X, MESH_MIN_X),
