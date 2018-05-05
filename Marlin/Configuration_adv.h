@@ -230,6 +230,7 @@
 #define E2_AUTO_FAN_PIN -1
 #define E3_AUTO_FAN_PIN -1
 #define E4_AUTO_FAN_PIN -1
+#define CHAMBER_AUTO_FAN_PIN -1
 #define EXTRUDER_AUTO_FAN_TEMPERATURE 50
 #define EXTRUDER_AUTO_FAN_SPEED   255  // == full speed
 
@@ -428,6 +429,13 @@
 // if unwanted behavior is observed on a user's machine when running at very slow speeds.
 #define MINIMUM_PLANNER_SPEED 0.05 // (mm/sec)
 
+
+#define USE_JUNCTION_DEVIATION
+#if ENABLED(USE_JUNCTION_DEVIATION)
+  #define JUNCTION_DEVIATION 0.02
+  //#define USE_EXTRUDER_IN_JUNCTION_DEVIATION
+#endif
+
 // Microstep setting (Only functional when stepper driver microstep pins are connected to MCU.
 #define MICROSTEP_MODES {16,16,16,16,16} // [1,2,4,8,16]
 
@@ -550,6 +558,16 @@
 
   // Add an option in the menu to run all auto#.g files
   //#define MENU_ADDAUTOSTART
+
+  /**
+   * Continue after Power-Loss (Creality3D)
+   *
+   * Store the current state to the SD Card at the start of each layer
+   * during SD printing. If the recovery file is found at boot time, present
+   * an option on the LCD screen to continue the print from the last-known
+   * point in the file.
+  */
+  //#define POWER_LOSS_RECOVERY
 
   /**
    * Sort SD file listings in alphabetical order.
@@ -726,7 +744,7 @@
  * See http://marlinfw.org/docs/features/lin_advance.html for full instructions.
  * Mention @Sebastianv650 on GitHub to alert the author of any issues.
  */
-//#define LIN_ADVANCE
+#define LIN_ADVANCE
 #if ENABLED(LIN_ADVANCE)
   #define LIN_ADVANCE_K 0  // Unit: mm compression per 1mm/s extruder speed
   //#define LA_DEBUG          // If enabled, this will generate debug information output over USB.

@@ -1311,8 +1311,7 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
 
   // Initial limit on the segment entry velocity
   float vmax_junction;
-
-  #if USE_JUNCTION_DEVIATION  // Use old jerk for now
+  #if ENABLED(USE_JUNCTION_DEVIATION)  // Use old jerk for now
 
     /*
        Compute maximum allowable entry speed at junction by centripetal acceleration approximation.
@@ -1338,12 +1337,21 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
        change the overall maximum entry speed conditions of all blocks.
     */
 
-    // Compute path unit vector
-    double unit_vec[XYZ] = {
-      delta_mm[A_AXIS] * inverse_millimeters,
-      delta_mm[B_AXIS] * inverse_millimeters,
-      delta_mm[C_AXIS] * inverse_millimeters
-    };
+    #if ENABLED(USE_EXTRUDER_IN_JUNCTION_DEVIATION)
+      double unit_vec[XYZ] = {
+        delta_mm[A_AXIS] * inverse_millimeters,
+        delta_mm[B_AXIS] * inverse_millimeters,
+        delta_mm[C_AXIS] * inverse_millimeters,
+        delta_mm[E_AXIS] * inverse_millimeters
+        };
+    #else
+      double unit_vec[XYZ] = {
+        delta_mm[A_AXIS] * inverse_millimeters,
+        delta_mm[B_AXIS] * inverse_millimeters,
+        delta_mm[C_AXIS] * inverse_millimeters
+        };
+      
+    #endif
 
     vmax_junction = MINIMUM_PLANNER_SPEED; // Set default max junction speed
 
@@ -1351,24 +1359,18 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
     if (moves_queued && !UNEAR_ZERO(previous_nominal_speed)) {
       // Compute cosine of angle between previous and current path. (prev_unit_vec is negative)
       // NOTE: Max junction velocity is computed without sin() or acos() by trig half angle identity.
-      const float junction_cos_theta = -previous_unit_vec[X_AXIS] * unit_vec[X_AXIS]
+      float junction_cos_theta = -previous_unit_vec[X_AXIS] * unit_vec[X_AXIS]
                                        -previous_unit_vec[Y_AXIS] * unit_vec[Y_AXIS]
                                        -previous_unit_vec[Z_AXIS] * unit_vec[Z_AXIS];
-      // Skip and use default max junction speed for 0 degree acute junction.
-      //if (junction_cos_theta < 0.999999) {
-      //  vmax_junction = min(previous_nominal_speed, block->nominal_speed);
-      //  // Skip and avoid divide by zero for straight junctions at 180 degrees. Limit to min() of nominal speeds.
-      //  if (junction_cos_theta > -0.999999) {
-      //    // Compute maximum junction velocity based on maximum acceleration and junction deviation
-      //    const float sin_theta_d2 = SQRT(0.5 * (1.0 - junction_cos_theta)); // Trig half angle identity. Always positive.
-      //    NOMORE(vmax_junction, SQRT(block->acceleration * junction_cos_theta * sin_theta_d2 / (1.0 - sin_theta_d2)));
-      //  }
-      //}
+
+      #if ENABLED(USE_EXTRUDER_IN_JUNCTION_DEVIATION)
+        junction_cos_theta -= previous_unit_vec[E_AXIS] * unit_vec[E_AXIS]
+      #endif
 
       // NOTE: Computed without any expensive trig, sin() or acos(), by trig half angle identity of cos(theta).
       if (junction_cos_theta > 0.999999) {
         // For a 0 degree acute junction, just set minimum junction speed.
-        block->max_junction_speed_sqr = 0.0;
+        vmax_junction = MINIMUM_PLANNER_SPEED;
       }
       else {
         junction_cos_theta = max(junction_cos_theta, -0.999999); // Check for numerical round-off to avoid divide by zero.
@@ -1376,16 +1378,15 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
 
         // TODO: Technically, the acceleration used in calculation needs to be limited by the minimum of the
         // two junctions. However, this shouldn't be a significant problem except in extreme circumstances.
-        block->max_junction_speed_sqr = (block->acceleration * settings.junction_deviation * sin_theta_d2) / (1.0 - sin_theta_d2);
+        vmax_junction = SQRT((block->acceleration * JUNCTION_DEVIATION * sin_theta_d2) / (1.0 - sin_theta_d2));
       }
 
     }
     else {
       // Initialize block entry speed as zero. Assume it will be starting from rest. Planner will correct this later.
-      //block->entry_speed_sqr = 0.0;
-      //block->max_junction_speed_sqr = 0.0; // Starting from rest. Enforce start from zero velocity.
+      vmax_junction = 0.0;
     }
-
+    vmax_junction = min( vmax_junction, min(block->nominal_speed,previous_nominal_speed));
     COPY(previous_unit_vec, unit_vec);
 
   #else // Classic Jerk Limiting
@@ -1461,7 +1462,8 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
     }
     else
       vmax_junction = safe_speed;
-
+  
+    previous_safe_speed = safe_speed;
   #endif // Classic Jerk Limiting
 
   // Max entry speed of this block equals the max exit speed of the previous block.
@@ -1486,7 +1488,7 @@ void Planner::_buffer_steps(const int32_t (&target)[XYZE]
   // Update previous path unit_vector and nominal speed
   COPY(previous_speed, current_speed);
   previous_nominal_speed = block->nominal_speed;
-  previous_safe_speed = safe_speed;
+  
 
   // Move buffer head
   block_buffer_head = next_buffer_head;
