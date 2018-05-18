@@ -1643,9 +1643,7 @@ uint32_t Stepper::stepper_block_phase_isr() {
         // If delayed Z enable, enable it now. This option will severely interfere with
         //  timing between pulses when chaining motion between blocks, and it could lead
         //  to lost steps in both X and Y axis, so avoid using it unless strictly necessary!!
-        if (current_block->steps[Z_AXIS] != 0) {
-          enable_Z();
-        }
+        if (current_block->steps[Z_AXIS]) enable_Z();
       #endif
     }
   }
@@ -2019,7 +2017,7 @@ int32_t Stepper::position(const AxisEnum axis) {
     // Protect the access to the position. Only required for AVR, as
     //  any 32bit CPU offers atomic access to 32bit variables
     const bool was_enabled = STEPPER_ISR_ENABLED();
-  if (was_enabled) DISABLE_STEPPER_DRIVER_INTERRUPT();
+    if (was_enabled) DISABLE_STEPPER_DRIVER_INTERRUPT();
   #endif
 
   int32_t v = count_position[axis];
@@ -2066,7 +2064,7 @@ int32_t Stepper::triggered_position(const AxisEnum axis) {
     // Protect the access to the position. Only required for AVR, as
     //  any 32bit CPU offers atomic access to 32bit variables
     const bool was_enabled = STEPPER_ISR_ENABLED();
-  if (was_enabled) DISABLE_STEPPER_DRIVER_INTERRUPT();
+    if (was_enabled) DISABLE_STEPPER_DRIVER_INTERRUPT();
   #endif
 
   const int32_t v = endstops_trigsteps[axis];
