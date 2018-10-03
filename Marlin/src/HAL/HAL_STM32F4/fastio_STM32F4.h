@@ -29,7 +29,10 @@
 #ifndef _FASTIO_STM32F4_H
 #define _FASTIO_STM32F4_H
 
+#undef _BV
 #define _BV(b) (1 << (b))
+
+#define USEABLE_HARDWARE_PWM(p) true
 
 #define READ(IO)                digitalRead(IO)
 #define WRITE(IO,V)             digitalWrite(IO,V)

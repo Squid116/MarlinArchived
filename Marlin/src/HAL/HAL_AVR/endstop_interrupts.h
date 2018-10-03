@@ -43,7 +43,7 @@
 #include "../../module/endstops.h"
 
 // One ISR for all EXT-Interrupts
-void endstop_ISR(void) { endstops.check_possible_change(); }
+void endstop_ISR(void) { endstops.update(); }
 
 /**
  * Patch for pins_arduino.h (...\Arduino\hardware\arduino\avr\variants\mega\pins_arduino.h)
@@ -222,6 +222,26 @@ void setup_endstop_interrupts( void ) {
       // Not all used endstop/probe -pins can raise interrupts. Please deactivate ENDSTOP_INTERRUPTS or change the pin configuration!
       static_assert(digitalPinToPCICR(Z2_MIN_PIN) != NULL, "Z2_MIN_PIN is not interrupt-capable");
       pciSetup(Z2_MIN_PIN);
+    #endif
+  #endif
+
+  #if HAS_Z3_MAX
+    #if (digitalPinToInterrupt(Z3_MAX_PIN) != NOT_AN_INTERRUPT)
+      attachInterrupt(digitalPinToInterrupt(Z3_MAX_PIN), endstop_ISR, CHANGE);
+    #else
+      // Not all used endstop/probe -pins can raise interrupts. Please deactivate ENDSTOP_INTERRUPTS or change the pin configuration!
+      static_assert(digitalPinToPCICR(Z3_MAX_PIN) != NULL, "Z3_MAX_PIN is not interrupt-capable");
+      pciSetup(Z3_MAX_PIN);
+    #endif
+  #endif
+
+  #if HAS_Z3_MIN
+    #if (digitalPinToInterrupt(Z3_MIN_PIN) != NOT_AN_INTERRUPT)
+      attachInterrupt(digitalPinToInterrupt(Z3_MIN_PIN), endstop_ISR, CHANGE);
+    #else
+      // Not all used endstop/probe -pins can raise interrupts. Please deactivate ENDSTOP_INTERRUPTS or change the pin configuration!
+      static_assert(digitalPinToPCICR(Z3_MIN_PIN) != NULL, "Z3_MIN_PIN is not interrupt-capable");
+      pciSetup(Z3_MIN_PIN);
     #endif
   #endif
 

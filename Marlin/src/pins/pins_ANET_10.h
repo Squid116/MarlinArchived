@@ -133,7 +133,10 @@
 //
 #define HEATER_0_PIN       13   // (extruder)
 #define HEATER_BED_PIN     12   // (bed)
-#define FAN_PIN             4
+
+#ifndef FAN_PIN
+  #define FAN_PIN           4
+#endif
 
 //
 // Misc. Functions
@@ -150,7 +153,7 @@
  *  REPRAP_DISCOUNT_FULL_GRAPHIC_SMART_CONTROLLER
  */
 
-#if ENABLED(ULTRA_LCD) && ENABLED(NEWPANEL)
+#if ENABLED(ULTRA_LCD)
   #define LCD_SDSS           28
   #if ENABLED(ADC_KEYPAD)
     #define SERVO0_PIN       27   // free for BLTouch/3D-Touch
@@ -190,7 +193,7 @@
   #endif
 #else
   #define SERVO0_PIN         27
-#endif  // ULTRA_LCD && NEWPANEL
+#endif
 
 /**
  * ====================================================================

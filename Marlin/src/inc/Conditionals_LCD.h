@@ -202,6 +202,18 @@
 #endif
 
 /**
+ * SPI PANELS
+ */
+
+ // Einstart OLED has Cardinal nav via pins defined in pins_EINSTART-S.h
+ #if ENABLED(U8GLIB_SH1106_EINSTART)
+   #define ULTRA_LCD
+   #define DOGLCD
+   #define ULTIPANEL
+   #define NEWPANEL
+ #endif
+
+/**
  * I2C PANELS
  */
 
@@ -390,12 +402,6 @@
 
 #define HAS_DEBUG_MENU (ENABLED(ULTIPANEL) && ENABLED(LCD_PROGRESS_BAR_TEST))
 
-// MK2 Multiplexer forces SINGLENOZZLE and kills DISABLE_INACTIVE_EXTRUDER
-#if ENABLED(MK2_MULTIPLEXER)
-  #define SINGLENOZZLE
-  #undef DISABLE_INACTIVE_EXTRUDER
-#endif
-
 /**
  * Extruders have some combination of stepper motors and hotends
  * so we separate these concepts into the defines:
@@ -406,8 +412,6 @@
  *  E_MANUAL     - Number of E steppers for LCD move options
  *
  */
-#define HOTEND_LOOP() for (int8_t e = 0; e < HOTENDS; e++)
-
 #if ENABLED(SWITCHING_EXTRUDER)                               // One stepper for every two EXTRUDERS
   #if EXTRUDERS > 4
     #define E_STEPPERS    3
@@ -419,13 +423,22 @@
   #if DISABLED(SWITCHING_NOZZLE)
     #define HOTENDS       E_STEPPERS
   #endif
-  #define E_MANUAL        EXTRUDERS
 #elif ENABLED(MIXING_EXTRUDER)
   #define E_STEPPERS      MIXING_STEPPERS
   #define E_MANUAL        1
-#else
+#elif ENABLED(SWITCHING_TOOLHEAD)
   #define E_STEPPERS      EXTRUDERS
   #define E_MANUAL        EXTRUDERS
+#endif
+
+// No inactive extruders with MK2_MULTIPLEXER or SWITCHING_NOZZLE
+#if ENABLED(MK2_MULTIPLEXER) || ENABLED(SWITCHING_NOZZLE)
+  #undef DISABLE_INACTIVE_EXTRUDER
+#endif
+
+// MK2 Multiplexer forces SINGLENOZZLE
+#if ENABLED(MK2_MULTIPLEXER)
+  #define SINGLENOZZLE
 #endif
 
 #if ENABLED(SINGLENOZZLE) || ENABLED(MIXING_EXTRUDER)         // One hotend, one thermistor, no XY offset
@@ -440,7 +453,19 @@
   #define HOTENDS EXTRUDERS
 #endif
 
+#ifndef E_STEPPERS
+  #define E_STEPPERS EXTRUDERS
+#endif
+
+#ifndef E_MANUAL
+  #define E_MANUAL EXTRUDERS
+#endif
+
+#define HOTEND_LOOP() for (int8_t e = 0; e < HOTENDS; e++)
+
 #define DO_SWITCH_EXTRUDER (ENABLED(SWITCHING_EXTRUDER) && (DISABLED(SWITCHING_NOZZLE) || SWITCHING_EXTRUDER_SERVO_NR != SWITCHING_NOZZLE_SERVO_NR))
+
+#define HAS_HOTEND_OFFSET (HOTENDS > 1)
 
 /**
  * DISTINCT_E_FACTORS affects how some E factors are accessed
@@ -503,8 +528,8 @@
 /**
  * Set flags for enabled probes
  */
-#define HAS_BED_PROBE (ENABLED(FIX_MOUNTED_PROBE) || ENABLED(Z_PROBE_ALLEN_KEY) || HAS_Z_SERVO_PROBE || ENABLED(Z_PROBE_SLED) || ENABLED(SOLENOID_PROBE))
-#define PROBE_SELECTED (HAS_BED_PROBE || ENABLED(PROBE_MANUALLY))
+#define HAS_BED_PROBE (ENABLED(FIX_MOUNTED_PROBE) || ENABLED(Z_PROBE_ALLEN_KEY) || HAS_Z_SERVO_PROBE || ENABLED(Z_PROBE_SLED) || ENABLED(SOLENOID_PROBE) || ENABLED(SENSORLESS_PROBING))
+#define PROBE_SELECTED (HAS_BED_PROBE || ENABLED(PROBE_MANUALLY) || ENABLED(MESH_BED_LEVELING))
 
 #if !HAS_BED_PROBE
   // Clear probe pin settings when no probe is selected
@@ -520,5 +545,8 @@
 #define HAS_SOFTWARE_ENDSTOPS (ENABLED(MIN_SOFTWARE_ENDSTOPS) || ENABLED(MAX_SOFTWARE_ENDSTOPS))
 #define HAS_RESUME_CONTINUE (ENABLED(NEWPANEL) || ENABLED(EMERGENCY_PARSER))
 #define HAS_COLOR_LEDS (ENABLED(BLINKM) || ENABLED(RGB_LED) || ENABLED(RGBW_LED) || ENABLED(PCA9632) || ENABLED(NEOPIXEL_LED))
+
+#define Z_MULTI_STEPPER_DRIVERS (ENABLED(Z_DUAL_STEPPER_DRIVERS) || ENABLED(Z_TRIPLE_STEPPER_DRIVERS))
+#define Z_MULTI_ENDSTOPS (ENABLED(Z_DUAL_ENDSTOPS) || ENABLED(Z_TRIPLE_ENDSTOPS))
 
 #endif // CONDITIONALS_LCD_H

@@ -82,7 +82,9 @@
 //
 #define HEATER_0_PIN       P2_7
 #define HEATER_BED_PIN     P2_5
-#define FAN_PIN            P2_4
+#ifndef FAN_PIN
+  #define FAN_PIN          P2_4
+#endif
 
 //
 // Unused
@@ -113,7 +115,7 @@
   #define LCD_PINS_ENABLE     P0_18   // (MOSI) EXP1-3
   #define LCD_PINS_D4         P0_15   // (SCK)  EXP1-5
 
-  #if ENABLED(REPRAP_DISCOUNT_SMART_CONTROLLER) && !ENABLED(DOGLCD)
+  #if ENABLED(REPRAP_DISCOUNT_SMART_CONTROLLER) && DISABLED(DOGLCD)
     #error "REPRAP_DISCOUNT_SMART_CONTROLLER is not supported by the BIQU BQ111-A4"
   #endif
 

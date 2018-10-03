@@ -48,6 +48,7 @@
 #define MSG_AUTO_HOME_X                     _UxGT("Home X")
 #define MSG_AUTO_HOME_Y                     _UxGT("Home Y")
 #define MSG_AUTO_HOME_Z                     _UxGT("Home Z")
+#define MSG_TMC_Z_CALIBRATION               _UxGT("Kalibriere Z")
 #define MSG_LEVEL_BED_HOMING                _UxGT("Home XYZ")
 #define MSG_LEVEL_BED_WAITING               _UxGT("Klick für Start")
 #define MSG_LEVEL_BED_NEXT_POINT            _UxGT("Nächste Koordinate")
@@ -80,6 +81,7 @@
 #define MSG_NEXT_CORNER                     _UxGT("Nächste Ecke")
 #define MSG_EDITING_STOPPED                 _UxGT("Netzbearb. angeh.")
 #define MSG_USER_MENU                       _UxGT("Benutzer Menü")
+
 #define MSG_MOVING                          _UxGT("In Bewegung...")
 #define MSG_FREE_XY                         _UxGT("Abstand XY")
 #define MSG_MOVE_X                          _UxGT("X")
@@ -144,6 +146,7 @@
 #define MSG_E3STEPS                         _UxGT("E3 Steps/mm")
 #define MSG_E4STEPS                         _UxGT("E4 Steps/mm")
 #define MSG_E5STEPS                         _UxGT("E5 Steps/mm")
+#define MSG_E6STEPS                         _UxGT("E6 Steps/mm")
 #define MSG_TEMPERATURE                     _UxGT("Temperatur")
 #define MSG_MOTION                          _UxGT("Bewegung")
 #define MSG_FILAMENT                        _UxGT("Filament")
@@ -195,6 +198,8 @@
 #define MSG_BLTOUCH_RESET                   _UxGT("BLTouch Reset")
 #define MSG_BLTOUCH_DEPLOY                  _UxGT("BLTouch ausfahren")
 #define MSG_BLTOUCH_STOW                    _UxGT("BLTouch einfahren")
+#define MSG_MANUAL_DEPLOY                   _UxGT("Z-Sensor anbringen")
+#define MSG_MANUAL_STOW                     _UxGT("Z-Sensor entfernen")
 #define MSG_HOME                            _UxGT("Vorher")  // Used as MSG_HOME " " MSG_X MSG_Y MSG_Z " " MSG_FIRST
 #define MSG_FIRST                           _UxGT("homen")
 #define MSG_ZPROBE_ZOFFSET                  _UxGT("Z Versatz")
@@ -309,8 +314,7 @@
 #define MSG_UBL_STEP_BY_STEP_MENU         _UxGT("Schrittweises UBL")
 
 #define MSG_LED_CONTROL                     _UxGT("LED Kontrolle")
-#define MSG_LEDS_ON                         _UxGT("Licht an")
-#define MSG_LEDS_OFF                        _UxGT("Licht aus")
+#define MSG_LEDS                            _UxGT("Licht")
 #define MSG_LED_PRESETS                     _UxGT("Licht Einstellungen")
 #define MSG_SET_LEDS_RED                    _UxGT("Rot")
 #define MSG_SET_LEDS_ORANGE                 _UxGT("Orange")

@@ -21,8 +21,6 @@
  *
  */
 
-
-
 #ifndef _HAL_STM32F7_H
 #define _HAL_STM32F7_H
 
@@ -41,8 +39,8 @@
 
 #include "Arduino.h"
 
-#include "../math_32bit.h"
-#include "../HAL_SPI.h"
+#include "../shared/math_32bit.h"
+#include "../shared/HAL_SPI.h"
 
 #include "fastio_STM32F7.h"
 #include "watchdog_STM32F7.h"
@@ -111,8 +109,13 @@
   #define analogInputToDigitalPin(p) (p)
 #endif
 
-#define CRITICAL_SECTION_START  noInterrupts();
-#define CRITICAL_SECTION_END    interrupts();
+#define CRITICAL_SECTION_START  uint32_t primask = __get_PRIMASK(); __disable_irq()
+#define CRITICAL_SECTION_END    if (!primask) __enable_irq()
+#define ISRS_ENABLED() (!__get_PRIMASK())
+#define ENABLE_ISRS()  __enable_irq()
+#define DISABLE_ISRS() __disable_irq()
+#define cli() __disable_irq()
+#define sei() __enable_irq()
 
 // On AVR this is in math.h?
 #define square(x) ((x)*(x))
@@ -150,11 +153,7 @@ extern uint16_t HAL_adc_result;
 // Public functions
 // --------------------------------------------------------------------------
 
-// Disable interrupts
-#define cli() do {  DISABLE_TEMPERATURE_INTERRUPT(); DISABLE_STEPPER_DRIVER_INTERRUPT(); } while(0)
 
-// Enable interrupts
-#define sei() do {  ENABLE_TEMPERATURE_INTERRUPT(); ENABLE_STEPPER_DRIVER_INTERRUPT(); } while(0)
 
 // Memory related
 #define __bss_end __bss_end__
@@ -213,7 +212,8 @@ void eeprom_update_block (const void *__src, void *__dst, size_t __n);
 inline void HAL_adc_init(void) {}
 
 #define HAL_START_ADC(pin)  HAL_adc_start_conversion(pin)
-#define HAL_READ_ADC        HAL_adc_result
+#define HAL_READ_ADC()      HAL_adc_result
+#define HAL_ADC_READY()     true
 
 void HAL_adc_start_conversion(const uint8_t adc_pin);
 

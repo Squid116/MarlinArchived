@@ -40,7 +40,7 @@
 // --------------------------------------------------------------------------
 
 #include <stdint.h>
-
+#include <util/atomic.h>
 #include <Arduino.h>
 
 // --------------------------------------------------------------------------
@@ -56,8 +56,8 @@
 // Includes
 // --------------------------------------------------------------------------
 
-#include "../math_32bit.h"
-#include "../HAL_SPI.h"
+#include "../shared/math_32bit.h"
+#include "../shared/HAL_SPI.h"
 
 #include "fastio_Stm32f1.h"
 #include "watchdog_Stm32f1.h"
@@ -73,7 +73,7 @@
   #error "SERIAL_PORT must be from -1 to 3"
 #endif
 #if SERIAL_PORT == -1
-extern USBSerial SerialUSB;
+  extern USBSerial SerialUSB;
   #define MYSERIAL0 SerialUSB
 #elif SERIAL_PORT == 0
   #define MYSERIAL0 Serial
@@ -93,7 +93,7 @@ extern USBSerial SerialUSB;
   #endif
   #define NUM_SERIAL 2
   #if SERIAL_PORT_2 == -1
-  extern USBSerial SerialUSB;
+    extern USBSerial SerialUSB;
     #define MYSERIAL1 SerialUSB
   #elif SERIAL_PORT_2 == 0
     #define MYSERIAL1 Serial
@@ -119,8 +119,11 @@ void HAL_init();
   #define analogInputToDigitalPin(p) (p)
 #endif
 
-#define CRITICAL_SECTION_START  noInterrupts();
-#define CRITICAL_SECTION_END    interrupts();
+#define CRITICAL_SECTION_START  uint32_t primask = __get_primask(); (void)__iCliRetVal()
+#define CRITICAL_SECTION_END    if (!primask) (void)__iSeiRetVal()
+#define ISRS_ENABLED() (!__get_primask())
+#define ENABLE_ISRS()  ((void)__iSeiRetVal())
+#define DISABLE_ISRS() ((void)__iCliRetVal())
 
 // On AVR this is in math.h?
 #define square(x) ((x)*(x))
@@ -221,7 +224,8 @@ void eeprom_update_block (const void *__src, void *__dst, size_t __n);
 void HAL_adc_init(void);
 
 #define HAL_START_ADC(pin)  HAL_adc_start_conversion(pin)
-#define HAL_READ_ADC        HAL_adc_result
+#define HAL_READ_ADC()      HAL_adc_result
+#define HAL_ADC_READY()     true
 
 void HAL_adc_start_conversion(const uint8_t adc_pin);
 
@@ -244,5 +248,8 @@ void HAL_enable_AdcFreerun(void);
 #define GET_PIN_MAP_PIN(index) index
 #define GET_PIN_MAP_INDEX(pin) pin
 #define PARSED_PIN_INDEX(code, dval) parser.intval(code, dval)
+
+#define JTAG_DISABLE() afio_cfg_debug_ports(AFIO_DEBUG_SW_ONLY)
+#define JTAGSWD_DISABLE() afio_cfg_debug_ports(AFIO_DEBUG_NONE)
 
 #endif // _HAL_STM32F1_H

@@ -36,6 +36,7 @@
 //
 // MOSFET changes
 //
+#define RAMPS_D9_PIN        8   // FAN (by default)
 #define RAMPS_D10_PIN       9   // EXTRUDER 1
 #define MOSFET_D_PIN       12   // EXTRUDER 2 or FAN
 
@@ -85,8 +86,9 @@
 #undef HEATER_BED_PIN
 #define HEATER_BED_PIN     10
 
-#undef FAN_PIN
-#define FAN_PIN             8   // Same as RAMPS_13_EEF
+#ifndef FAN_PIN
+  #define FAN_PIN           8   // Same as RAMPS_13_EEF
+#endif
 
 //
 // Misc. Functions

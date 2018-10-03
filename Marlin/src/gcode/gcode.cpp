@@ -61,11 +61,6 @@ bool GcodeSuite::axis_relative_modes[] = AXIS_RELATIVE_MODES;
   float GcodeSuite::coordinate_system[MAX_COORDINATE_SYSTEMS][XYZ];
 #endif
 
-#if HAS_LEVELING && ENABLED(G29_RETRY_AND_RECOVER)
-  #include "../feature/bedlevel/bedlevel.h"
-  #include "../module/planner.h"
-#endif
-
 /**
  * Set target_extruder from the T parameter or the active_extruder
  *
@@ -108,7 +103,7 @@ void GcodeSuite::get_destination_from_command() {
       destination[i] = current_position[i];
   }
 
-  if (parser.linearval('F') > 0.0)
+  if (parser.linearval('F') > 0)
     feedrate_mm_s = MMM_TO_MMS(parser.value_feedrate());
 
   #if ENABLED(PRINTCOUNTER)
@@ -136,34 +131,37 @@ void GcodeSuite::dwell(millis_t time) {
  */
 #if HAS_LEVELING && ENABLED(G29_RETRY_AND_RECOVER)
 
+  #ifndef G29_MAX_RETRIES
+    #define G29_MAX_RETRIES 0
+  #endif
+
   void GcodeSuite::G29_with_retry() {
-    set_bed_leveling_enabled(false);
-    for (uint8_t i = G29_MAX_RETRIES; i--;) {
-      G29();
-      if (planner.leveling_active) break;
-      #ifdef G29_ACTION_ON_RECOVER
-        SERIAL_ECHOLNPGM("//action:" G29_ACTION_ON_RECOVER);
-      #endif
-      #ifdef G29_RECOVER_COMMANDS
-        process_subcommands_now_P(PSTR(G29_RECOVER_COMMANDS));
-      #endif
+    uint8_t retries = G29_MAX_RETRIES;
+    while (G29()) { // G29 should return true for failed probes ONLY
+      if (retries--) {
+        #ifdef G29_ACTION_ON_RECOVER
+          SERIAL_ECHOLNPGM("//action:" G29_ACTION_ON_RECOVER);
+        #endif
+        #ifdef G29_RECOVER_COMMANDS
+          process_subcommands_now_P(PSTR(G29_RECOVER_COMMANDS));
+        #endif
+      }
+      else {
+        #ifdef G29_FAILURE_COMMANDS
+          process_subcommands_now_P(PSTR(G29_FAILURE_COMMANDS));
+        #endif
+        #ifdef G29_ACTION_ON_FAILURE
+          SERIAL_ECHOLNPGM("//action:" G29_ACTION_ON_FAILURE);
+        #endif
+        #if ENABLED(G29_HALT_ON_FAILURE)
+          kill(PSTR(MSG_ERR_PROBING_FAILED));
+        #endif
+        return;
+      }
     }
-    if (planner.leveling_active) {
-      #ifdef G29_SUCCESS_COMMANDS
-        process_subcommands_now_P(PSTR(G29_SUCCESS_COMMANDS));
-      #endif
-    }
-    else {
-      #ifdef G29_FAILURE_COMMANDS
-        process_subcommands_now_P(PSTR(G29_FAILURE_COMMANDS));
-      #endif
-      #ifdef G29_ACTION_ON_FAILURE
-        SERIAL_ECHOLNPGM("//action:" G29_ACTION_ON_FAILURE);
-      #endif
-      #if ENABLED(G29_HALT_ON_FAILURE)
-        kill(PSTR(MSG_ERR_PROBING_FAILED));
-      #endif
-    }
+    #ifdef G29_SUCCESS_COMMANDS
+      process_subcommands_now_P(PSTR(G29_SUCCESS_COMMANDS));
+    #endif
   }
 
 #endif // HAS_LEVELING && G29_RETRY_AND_RECOVER
@@ -172,7 +170,7 @@ void GcodeSuite::dwell(millis_t time) {
 // Placeholders for non-migrated codes
 //
 #if ENABLED(M100_FREE_MEMORY_WATCHER)
-  extern void M100_dump_routine(const char * const title, const char *start, const char *end);
+  extern void M100_dump_routine(PGM_P const title, const char *start, const char *end);
 #endif
 
 /**
@@ -294,6 +292,10 @@ void GcodeSuite::process_parsed_command(
         case 5: M5(); break;                                      // M5 - turn spindle/laser off
       #endif
 
+      #if ENABLED(EXTERNAL_CLOSED_LOOP_CONTROLLER)
+        case 12: M12(); break;                                    // M12: Synchronize and optionally force a CLC set
+      #endif
+
       case 17: M17(); break;                                      // M17: Enable all stepper motors
 
       #if ENABLED(SDSUPPORT)
@@ -361,6 +363,8 @@ void GcodeSuite::process_parsed_command(
         case 108: M108(); break;                                  // M108: Cancel Waiting
         case 112: M112(); break;                                  // M112: Emergency Stop
         case 410: M410(); break;                                  // M410: Quickstop - Abort all the planned moves.
+      #else
+        case 108: case 112: case 410: break;
       #endif
 
       #if ENABLED(HOST_KEEPALIVE_FEATURE)
@@ -470,9 +474,11 @@ void GcodeSuite::process_parsed_command(
       #if ENABLED(FWRETRACT)
         case 207: M207(); break;                                  // M207: Set Retract Length, Feedrate, and Z lift
         case 208: M208(); break;                                  // M208: Set Recover (unretract) Additional Length and Feedrate
-        case 209:
-          if (MIN_AUTORETRACT <= MAX_AUTORETRACT) M209();         // M209: Turn Automatic Retract Detection on/off
-          break;
+        #if ENABLED(FWRETRACT_AUTORETRACT)
+          case 209:
+            if (MIN_AUTORETRACT <= MAX_AUTORETRACT) M209();       // M209: Turn Automatic Retract Detection on/off
+            break;
+        #endif
       #endif
 
       case 211: M211(); break;                                    // M211: Enable, Disable, and/or Report software endstops
@@ -487,6 +493,9 @@ void GcodeSuite::process_parsed_command(
 
       #if HAS_SERVOS
         case 280: M280(); break;                                  // M280: Set servo position absolute
+        #if ENABLED(EDITABLE_SERVO_ANGLES)
+          case 281: M281(); break;                                // M281: Set servo angles
+        #endif
       #endif
 
       #if ENABLED(BABYSTEPPING)
@@ -599,6 +608,10 @@ void GcodeSuite::process_parsed_command(
         case 702: M702(); break;                                  // M702: Unload Filament
       #endif
 
+      #if ENABLED(MAX7219_GCODE)
+        case 7219: M7219(); break;                                // M7219: Set LEDs, columns, and rows
+      #endif
+
       #if ENABLED(LIN_ADVANCE)
         case 900: M900(); break;                                  // M900: Set advance K factor.
       #endif
@@ -619,13 +632,15 @@ void GcodeSuite::process_parsed_command(
           case 122: M122(); break;
         #endif
         case 906: M906(); break;                                  // M906: Set motor current in milliamps using axis codes X, Y, Z, E
-        case 911: M911(); break;                                  // M911: Report TMC2130 prewarn triggered flags
-        case 912: M912(); break;                                  // M912: Clear TMC2130 prewarn triggered flags
+        #if ENABLED(MONITOR_DRIVER_STATUS)
+          case 911: M911(); break;                                // M911: Report TMC2130 prewarn triggered flags
+          case 912: M912(); break;                                // M912: Clear TMC2130 prewarn triggered flags
+        #endif
         #if ENABLED(HYBRID_THRESHOLD)
           case 913: M913(); break;                                // M913: Set HYBRID_THRESHOLD speed.
         #endif
-        #if ENABLED(SENSORLESS_HOMING)
-          case 914: M914(); break;                                // M914: Set SENSORLESS_HOMING sensitivity.
+        #if USE_SENSORLESS
+          case 914: M914(); break;                                // M914: Set StallGuard sensitivity.
         #endif
         #if ENABLED(TMC_Z_CALIBRATION)
           case 915: M915(); break;                                // M915: TMC Z axis calibration.
@@ -687,11 +702,9 @@ void GcodeSuite::process_next_command() {
     SERIAL_ECHOLN(current_command);
     #if ENABLED(M100_FREE_MEMORY_WATCHER)
       SERIAL_ECHOPAIR("slot:", cmd_queue_index_r);
-      M100_dump_routine("   Command Queue:", (const char*)command_queue, (const char*)(command_queue + sizeof(command_queue)));
+      M100_dump_routine(PSTR("   Command Queue:"), (const char*)command_queue, (const char*)(command_queue + sizeof(command_queue)));
     #endif
   }
-
-  reset_stepper_timeout(); // Keep steppers powered
 
   // Parse the next command in the queue
   parser.parse(current_command);
@@ -703,14 +716,14 @@ void GcodeSuite::process_next_command() {
    * Run a series of commands, bypassing the command queue to allow
    * G-code "macros" to be called from within other G-code handlers.
    */
-  void GcodeSuite::process_subcommands_now_P(const char *pgcode) {
+  void GcodeSuite::process_subcommands_now_P(PGM_P pgcode) {
     // Save the parser state
     char * const saved_cmd = parser.command_ptr;
 
     // Process individual commands in string
     while (pgm_read_byte_near(pgcode)) {
       // Break up string at '\n' delimiters
-      const char *delim = strchr_P(pgcode, '\n');
+      PGM_P const delim = strchr_P(pgcode, '\n');
       size_t len = delim ? delim - pgcode : strlen_P(pgcode);
       char cmd[len + 1];
       strncpy_P(cmd, pgcode, len);

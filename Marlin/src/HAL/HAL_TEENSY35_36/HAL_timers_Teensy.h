@@ -43,10 +43,6 @@
 typedef uint32_t hal_timer_t;
 #define HAL_TIMER_TYPE_MAX 0xFFFFFFFF
 
-#define STEP_TIMER_NUM 0
-#define TEMP_TIMER_NUM 1
-#define PULSE_TIMER_NUM STEP_TIMER_NUM
-
 #define FTM0_TIMER_PRESCALE 8
 #define FTM1_TIMER_PRESCALE 4
 #define FTM0_TIMER_PRESCALE_BITS 0b011
@@ -56,14 +52,20 @@ typedef uint32_t hal_timer_t;
 #define FTM1_TIMER_RATE (F_BUS / FTM1_TIMER_PRESCALE) // 60MHz / 4 = 15MHz
 
 #define HAL_TIMER_RATE         (FTM0_TIMER_RATE)
-#define HAL_STEPPER_TIMER_RATE HAL_TIMER_RATE
-#define HAL_TICKS_PER_US       ((HAL_STEPPER_TIMER_RATE) / 1000000)
-#define STEPPER_TIMER_PRESCALE (CYCLES_PER_MICROSECOND / HAL_TICKS_PER_US)
-#define STEP_TIMER_MIN_INTERVAL   8 // minimum time in µs between stepper interrupts
 
-#define TEMP_TIMER_FREQUENCY   1000
+#define STEP_TIMER_NUM 0
+#define TEMP_TIMER_NUM 1
+#define PULSE_TIMER_NUM STEP_TIMER_NUM
 
-#define PULSE_TIMER_PRESCALE STEPPER_TIMER_PRESCALE
+#define TEMP_TIMER_FREQUENCY    1000
+
+#define STEPPER_TIMER_RATE     HAL_TIMER_RATE
+#define STEPPER_TIMER_TICKS_PER_US ((STEPPER_TIMER_RATE) / 1000000)
+#define STEPPER_TIMER_PRESCALE (CYCLES_PER_MICROSECOND / STEPPER_TIMER_TICKS_PER_US)
+
+#define PULSE_TIMER_RATE       STEPPER_TIMER_RATE   // frequency of pulse timer
+#define PULSE_TIMER_PRESCALE   STEPPER_TIMER_PRESCALE
+#define PULSE_TIMER_TICKS_PER_US STEPPER_TIMER_TICKS_PER_US
 
 #define ENABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_enable_interrupt(STEP_TIMER_NUM)
 #define DISABLE_STEPPER_DRIVER_INTERRUPT() HAL_timer_disable_interrupt(STEP_TIMER_NUM)
@@ -98,11 +100,6 @@ FORCE_INLINE static hal_timer_t HAL_timer_get_count(const uint8_t timer_num) {
     case 1: return FTM1_CNT;
   }
   return 0;
-}
-
-FORCE_INLINE static void HAL_timer_restrain(const uint8_t timer_num, const uint16_t interval_ticks) {
-  const hal_timer_t mincmp = HAL_timer_get_count(timer_num) + interval_ticks;
-  if (HAL_timer_get_compare(timer_num) < mincmp) HAL_timer_set_compare(timer_num, mincmp);
 }
 
 void HAL_timer_enable_interrupt(const uint8_t timer_num);
